@@ -107,6 +107,42 @@ Thanks to all the contributors for building, reviewing and testing.
 
 [![Contributors](https://contrib.rocks/image?repo=aws-samples/awsome-distributed-training)](https://github.com/aws-samples/awsome-distributed-training/graphs/contributors)
 
-## 7.Star History
+## 7. Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=aws-samples/awsome-distributed-training&type=Date)](https://star-history.com/#aws-samples/awsome-distributed-training&Date)
+
+---
+
+## 🔑 Note: SSH Key Setup for SMHP Slurm Clusters with OZFS/FSx File System
+
+If you use SMHP Slurm clusters with the OZFS (or FSx) file system, you may find you cannot SSH or [Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) into compute nodes from the cluster head node.  
+This typically happens if your SSH keys are stored in `/fsx/&lt;user&gt;/.ssh` instead of the default `/home/&lt;user&gt;/.ssh`. Compute nodes often set `$HOME` to `/home/&lt;user&gt;`, causing SSH logins to fail if the `.ssh` folder (and keys) are missing there.
+
+**Quick Fix:** Add this snippet to your provisioning, user-data, or login scripts to copy SSH keys over (if needed):
+
+```bash
+USER_NAME="$(whoami)"
+FSX_HOME="/fsx/$USER_NAME"
+MYHOME="/home/$USER_NAME"
+
+if [ -d "$FSX_HOME/.ssh" ] && [ ! -d "$MYHOME/.ssh" ]; then
+    cp -r "$FSX_HOME/.ssh" "$MYHOME/.ssh"
+    chown -R "$USER_NAME:$USER_NAME" "$MYHOME/.ssh"
+    chmod 700 "$MYHOME/.ssh"
+    chmod 600 "$MYHOME/.ssh/"*
+    echo "Copied SSH keys from $FSX_HOME/.ssh to $MYHOME/.ssh"
+fi
+```
+
+**Alternative (symlink, advanced users):**
+If you want to symlink instead, use this instead of the above block:
+```bash
+if [ -d "$FSX_HOME/.ssh" ] && [ ! -e "$MYHOME/.ssh" ]; then
+    ln -s "$FSX_HOME/.ssh" "$MYHOME/.ssh"
+    echo "Symlinked $MYHOME/.ssh -> $FSX_HOME/.ssh"
+fi
+```
+
+**Note:**  
+- Make sure `.ssh` and private key files have correct permissions (`700` on `.ssh` directories and `600` on private keys).  
+- Integrate this logic where you set up users or as a Slurm prolog/profile.d script.
